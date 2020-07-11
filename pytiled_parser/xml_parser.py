@@ -261,12 +261,67 @@ def _parse_tiled_objects(
     tiled_objects: List[objects.TiledObject] = []
 
     for object_element in object_elements:
-        id_ = int(object_element.attrib["id"])
+        my_id = int(object_element.attrib["id"])
         location_x = float(object_element.attrib["x"])
         location_y = float(object_element.attrib["y"])
         location = objects.OrderedPair(location_x, location_y)
+        tiled_object = None
 
-        tiled_object = objects.TiledObject(id_=id_, location=location)
+        if "width" in object_element.attrib:
+            my_width = float(object_element.attrib["width"])
+        else:
+            my_width = None
+        if "height" in object_element.attrib:
+            my_height = float(object_element.attrib["height"])
+        else:
+            my_height = None
+
+        # This is where it would be nice if we could assume a walrus
+        # operator was part of our Python distribution.
+
+        polygon = object_element.findall("./polygon")
+
+        if polygon and len(polygon) > 0:
+            points = _parse_points(polygon[0].attrib["points"])
+            tiled_object = objects.PolygonObject(
+                id_=my_id,
+                location=(location_x, location_y),
+                size=(my_width, my_height),
+                points=points,
+            )
+
+        if tiled_object is None:
+            polyline = object_element.findall("./polyline")
+
+            if polyline and len(polyline) > 0:
+                points = _parse_points(polyline[0].attrib["points"])
+                tiled_object = objects.PolylineObject(
+                    id_=my_id,
+                    location=(location_x, location_y),
+                    size=(my_width, my_height),
+                    points=points,
+                )
+
+        if tiled_object is None:
+            ellipse = object_element.findall("./ellipse")
+
+            if ellipse and len(ellipse):
+                tiled_object = objects.ElipseObject(
+                    id_=my_id, location=(location_x, location_y), size=(my_width, my_height)
+                )
+
+        if tiled_object is None:
+            if "template" in object_element.attrib:
+                print(
+                    "Warning, this .tmx file is using an unsupported"
+                    "'template' attribute. Ignoring."
+                )
+                continue
+
+        if tiled_object is None:
+            tiled_object = objects.RectangleObject(
+                id_=my_id, location=(location_x, location_y), size=(my_width, my_height)
+            )
 
         try:
             tiled_object.gid = int(object_element.attrib["gid"])
